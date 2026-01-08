@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>YouTube Player Bridge</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #player {
+            width: 100%;
+            height: 100%;
+        }
+
+        .error {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ff4444;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+            text-align: center;
+            padding: 20px;
+            background: #000;
+        }
+
+        .loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+            background: #000;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="player">
+        <div class="loading">Loading...</div>
+    </div>
+
+    <script>
+        // Parse URL parameters
+        const params = new URLSearchParams(window.location.search);
+        const videoId = params.get('video');
+        const playlistId = params.get('playlist');
+        const shouldLoop = params.get('loop') === '1';
+
+        let player = null;
+
+        // Show error
+        function showError(message) {
+            document.getElementById('player').innerHTML =
+                '<div class="error">⚠️ ' + message + '</div>';
+        }
+
+        // YouTube IFrame API Ready callback
+        function onYouTubeIframeAPIReady() {
+            if (!videoId && !playlistId) {
+                showError('No video or playlist specified');
+                return;
+            }
+
+            const playerVars = {
+                autoplay: 1,
+                controls: 1,
+                modestbranding: 1,
+                rel: 0,
+                playsinline: 1,
+                fs: 1,
+                origin: window.location.origin
+            };
+
+            // Single video loop setup
+            if (shouldLoop && videoId && !playlistId) {
+                playerVars.loop = 1;
+                playerVars.playlist = videoId; // Required for single video loop
+            }
+
+            // Playlist setup
+            if (playlistId) {
+                playerVars.listType = 'playlist';
+                playerVars.list = playlistId;
+            }
+
+            const config = {
+                width: '100%',
+                height: '100%',
+                playerVars: playerVars,
+                events: {
+                    onReady: function (event) {
+                        event.target.playVideo();
+                    },
+                    onStateChange: function (event) {
+                        // Fallback loop for single video
+                        if (event.data === YT.PlayerState.ENDED) {
+                            if (shouldLoop && videoId && !playlistId) {
+                                event.target.seekTo(0);
+                                event.target.playVideo();
+                            }
+                        }
+                    },
+                    onError: function (event) {
+                        const errors = {
+                            2: 'Invalid video ID',
+                            5: 'HTML5 player error',
+                            100: 'Video not found or private',
+                            101: 'Embedding disabled by owner',
+                            150: 'Embedding disabled by owner'
+                        };
+                        showError(errors[event.data] || 'Error ' + event.data);
+                    }
+                }
+            };
+
+            // Add video ID if present
+            if (videoId) {
+                config.videoId = videoId;
+            }
+
+            player = new YT.Player('player', config);
+        }
+
+        // Make callback global
+        window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+
+        // Load YouTube IFrame API
+        (function () {
+            const script = document.createElement('script');
+            script.src = 'https://www.youtube.com/iframe_api';
+            script.async = true;
+            document.head.appendChild(script);
+        })();
+    </script>
+</body>
+
+</html>
